@@ -30,21 +30,21 @@ def calcCorrelation(field1,field2):
 # Parameters
 #Lx, Lz = 4, 1
 #Lz = 2
-alpha = 3.9989
-Nx, Nz = 1024, 512
-Rayleigh = 40000
-Prandtl = 100
+alpha = 1.5585
+Nx, Nz = 256, 128
+Rayleigh = 50000
+Prandtl = 7
 dealias = 3/2
-stop_sim_time = 5
-timestepper = d3.RK443
-max_timestep = 0.1
+stop_sim_time = 30
+timestepper = d3.RK222
+max_timestep = 0.125
 dtype = np.float64
 
 # Bases
 coords = d3.CartesianCoordinates('x', 'z')
 dist = d3.Distributor(coords, dtype=dtype)
 xbasis = d3.RealFourier(coords['x'], size=Nx, bounds=(-1*np.pi/alpha, np.pi/alpha), dealias=dealias)
-zbasis = d3.ChebyshevT(coords['z'], size=Nz, bounds=(0, 1), dealias=dealias)
+zbasis = d3.ChebyshevT(coords['z'], size=Nz, bounds=(-1, 1), dealias=dealias)
 
 # Fields
 phi = dist.Field(name='phi', bases=(xbasis,zbasis))
@@ -66,8 +66,6 @@ tau_u1 = dist.Field(name='tau_u1', bases=xbasis)
 tau_u2 = dist.Field(name='tau_u2', bases=xbasis)
 
 # Substitutions
-Pr = Prandtl
-Ra = Rayleigh
 kappa = 4*(Rayleigh * Prandtl)**(-1/2)
 nu = 4*(Rayleigh / Prandtl)**(-1/2)
 x, z = dist.local_grids(xbasis, zbasis)
@@ -86,16 +84,16 @@ dx = lambda A: d3.Differentiate(A, coords['x'])
 # First-order form: "lap(f)" becomes "div(grad_f)"
 problem = d3.IVP([phi, u, v, b, tau_v1, tau_v2, tau_phi1, tau_phi2, tau_b1, tau_b2], namespace=locals())
 problem.add_equation("div(grad_v) + lift(tau_v2,-1) - phi= 0")
-problem.add_equation("dt(phi) - Pr*div(grad_phi)-  Pr*Ra*dx(dx(b)) + lift(tau_phi2,-1) = -dx(u*phi - v*lap(u))  ")
-problem.add_equation("dt(b) - div(grad_b) + lift(tau_b2,-1) = -u*dx(b)-v*dz(b)")
+problem.add_equation("dt(phi) - nu*div(grad_phi)-  dx(dx(b)) + lift(tau_phi2,-1) = -dx(u*phi - v*lap(u))  ")
+problem.add_equation("dt(b) - kappa*div(grad_b) + lift(tau_b2,-1) = -u*dx(b)-v*dz(b)")
 problem.add_equation("dx(u) + dz(v)+ lift(tau_v1,-1) = 0", condition='nx!=0')
 problem.add_equation("u = 0", condition='nx==0')
-problem.add_equation("b(z=1) = 0")
+problem.add_equation("b(z=1) = -1")
 problem.add_equation("v(z=1) = 0")
-problem.add_equation("b(z=0) = 0")
-problem.add_equation("v(z=0) = 0")
+problem.add_equation("b(z=-1) = 1")
+problem.add_equation("v(z=-1) = 0")
 problem.add_equation("dz(v)(z=1) = 0")
-problem.add_equation("dz(v)(z=0) = 0")
+problem.add_equation("dz(v)(z=-1) = 0")
 
 
 # problem = d3.IVP([phi, v, b, tau_v1, tau_v2, tau_phi1, tau_phi2, tau_b1, tau_b2], namespace=locals())
@@ -116,8 +114,8 @@ solver.stop_sim_time = stop_sim_time
 
 # Initial conditions
 b.fill_random('g', seed=42, distribution='normal', scale=1e-3) # Random noise
-b['g'] *= z * (1-z) # Damp noise at walls
-b['g'] += 0.5*z*(1-z) # Add linear background
+b['g'] *= (1-z) * (1+z) # Damp noise at walls
+b['g'] += - z # Add linear background
 
 # Analysis
 snapshots = solver.evaluator.add_file_handler('snapshots', sim_dt=0.25, max_writes=50)
@@ -145,6 +143,7 @@ volume = ((2*np.pi)/alpha)*2
 
 # Main loop
 startup_iter = 10
+
 tVals = []
 NuVals = []
 NuFileName = 'NuData.npy'
@@ -153,14 +152,14 @@ try:
     while solver.proceed:
         timestep = CFL.compute_timestep()
         solver.step(timestep)
-        flow_Nu = calcNu(b)
+        flow_Nu = flow.volume_integral('Nu')/volume
+        tVals.append(solver.sim_time)
+        NuVals.append(flow_Nu)
+        writeNu(NuFileName,tVals,NuVals)
         if (solver.iteration-1) % 10 == 0:
-            writeNu(NuFileName,tVals,NuVals)
             #max_Re = flow.max('Re')
             #logger.info('Iteration=%i, Time=%e, dt=%e, max Re=%f' %(solver.iteration, solver.sim_time, timestep, max_Re))
             logger.info('Iteration=%i, Time=%e, dt=%e, Nu=%f' %(solver.iteration, solver.sim_time, timestep, flow_Nu))
-        tVals.append(solver.sim_time)
-        NuVals.append(flow_Nu)
 except:
     logger.error('Exception raised, triggering end of main loop.')
     raise
@@ -170,5 +169,5 @@ finally:
 def plot(field):
     field.change_scales(1)
     X,Z = np.meshgrid(x.ravel(),z.ravel())
-    plt.pcolormesh(X,Z,field['g'].T,cmap='seismic')
+    plt.contourf(X,Z,field['g'].T,cmap='seismic')
     plt.colorbar()
