@@ -19,6 +19,13 @@ def writeNu(fileName,tVals,NuVals):
         return 1
     except:
         return 0
+    
+def calcCorrelation(field1,field2):
+    field1Arr = field1.allgather_data('g').ravel()
+    field2Arr = field2.allgather_data('g').ravel()
+    costheta = np.dot(field1Arr,field2Arr)/(np.linalg.norm(field1Arr)*np.linalg.norm(field2Arr))
+    return costheta
+    
 
 # Parameters
 #Lx, Lz = 4, 1
