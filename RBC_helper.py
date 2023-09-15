@@ -569,9 +569,35 @@ def optimize_alpha():
     
     return alpha_vals, Nu_Vals, steady_states
         
-def findOptimalAlpha(startingGuess, starting_alpha,f):
-    pass
+def foundOptimalNu(NuArr):
+    if len(NuArr) >= 3 and (NuArr[-2] > NuArr[-3]) and (NuArr[-2] > NuArr[-1]):
+        return True
+    return False
 
+def findOptimalAlpha(Ra,Pr,Nx,Nz,starting_alpha,alpha_step,startingGuess,dt,tol):
+    found = False
+    alpha = starting_alpha
+    guess = startingGuess
+    Nu_Vals = []
+    alpha_Vals = []
+    max_iters = 10
+    iters = 0
+    while not found and iters < max_iters:
+        steady = RBC_Problem(Ra,Pr,alpha,Nx,Nz,time_step=dt)
+        steady.initialize()
+        iters = findSteadyState(steady, guess, 2, tol, 50, False)
+        print('alpha=',alpha)
+        print("steady state found. Iters=",iters)
+        Nu= steady.calc_Nu()
+        print("Nu value:",Nu)
+        Nu_Vals.append(Nu)
+        alpha = alpha-alpha_step
+        found = foundOptimalNu(Nu_Vals)
+        iters+= 1
+    if found:
+        return alpha_Vals, Nu_Vals
+    return alpha_Vals, Nu_Vals
+        
         
     
     
