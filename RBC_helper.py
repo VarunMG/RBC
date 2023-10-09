@@ -201,7 +201,7 @@ class RBC_Problem:
         
         
         ##defining timestepper
-        timestepper = d3.RK222
+        timestepper = d3.RK443
         self.solver = self.problem.build_solver(timestepper)
         max_timestep = 0.125
         
@@ -574,29 +574,55 @@ def foundOptimalNu(NuArr):
         return True
     return False
 
-def findOptimalAlpha(Ra,Pr,Nx,Nz,starting_alpha,alpha_step,startingGuess,dt,tol):
+def findOptimalAlpha(Ra,Pr,Nx,Nz,starting_alpha,alpha_step,startingGuess,dt,tol,outputOpt):
     found = False
     alpha = starting_alpha
     guess = startingGuess
     Nu_Vals = []
     alpha_Vals = []
-    max_iters = 10
+    max_iters = 50
     iters = 0
     while not found and iters < max_iters:
+        print("alpha values checked so far")
+        print(alpha_Vals)
+        print("Nu vals calculated so far")
+        print(Nu_Vals)
         steady = RBC_Problem(Ra,Pr,alpha,Nx,Nz,time_step=dt)
         steady.initialize()
-        iters = findSteadyState(steady, guess, 2, tol, 50, False)
+        steadystate_iters = findSteadyState(steady, guess, 2, tol, 50, False)
         print('alpha=',alpha)
-        print("steady state found. Iters=",iters)
+        print("steady state found. Iters=",steadystate_iters)
         Nu= steady.calc_Nu()
         print("Nu value:",Nu)
+        alpha_Vals.append(alpha)
         Nu_Vals.append(Nu)
-        alpha = alpha-alpha_step
+        alpha = alpha+alpha_step
         found = foundOptimalNu(Nu_Vals)
+        if found:
+            print("we found an optimal alpha!")
+        else:
+            print("not yet found optimal alpha :( ")
         iters+= 1
+        steady.b.change_scales(1)
+        steady.phi.change_scales(1)
+        steady_b = steady.b.allgather_data('g')
+        steady_phi = steady.phi.allgather_data('g')
+        dt = steady.time_step
+        guess = arrsToStateVec(steady_phi, steady_b)
     if found:
-        return alpha_Vals, Nu_Vals
-    return alpha_Vals, Nu_Vals
+        print("found an optimal state!!!")
+        optAlpha = np.array([alpha_Vals[-3],alpha_Vals[-2],alpha_Vals[-1]])
+        optNu = np.array([Nu_Vals[-3],Nu_Vals[-2],Nu_Vals[-1]])
+        quadInterp = np.polyfit(optAlpha,optNu,2)
+        alphaMax = -1*quadInterp[1]/(2*quadInterp[0])
+        NuMax = quadInterp[0]*alphaMax**2 + quadInterp[1]*alphaMax + quadInterp[2]
+        if outputOpt:
+            steady = RBC_Problem(Ra,Pr,alphaMax,Nx,Nz,time_step=dt)
+            steady.initialize()
+            steadystate_iters = findSteadyState(steady,guess,2,tol,50,False)
+            steady.saveToFile('optimalState.npy')
+        return alpha_Vals, Nu_Vals, alphaMax, NuMax
+    return alpha_Vals, Nu_Vals, -1, -1
         
         
     
