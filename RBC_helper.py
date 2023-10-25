@@ -441,6 +441,10 @@ def Gt(X,T,problem):
     problem.solve_system(T)
     Gt_Vec = probToStateVec(problem)
     Gt_Vec = (Gt_Vec - X)/T
+    #statusFile = open("optimizationStatus.txt","a")
+    #statusFile.write("flow map call \n")
+    #statusFile.close()
+    logger.info("flow map call")
     return Gt_Vec
 
 def jac_approx(X,dX,F,T,problem):
@@ -469,6 +473,13 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
 
     X = guess
     while err > tol and iters < max_iters:
+        #statusFile = open("optimizationStatus.txt","a")
+        #statusFile.write("------------------ \n")
+        #statusText = 'iteration: ' + str(iters) + '\n'
+        #statusFile.write(statusText)
+        #statusFile.close()
+        logger.info("---------------------")
+        logger.info("iteration:" + str(iters))
         if write == 'y':
             print("iter: ",iters)
             print(X)
@@ -485,6 +496,10 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
         logging.info("Completed iteration: %i", iters)
         iters += 1
         err = np.linalg.norm(Gt(X,T,problem))
+    #statusFile = open("optimizationStatus.txt","a")
+    #statusFile.write("loop over \n")
+    #statusFile.close()
+    logger.info("loop over")
     phiStead, bStead = stateToArrs(X,Nx,Nz)
     problem.phi.load_from_global_grid_data(phiStead)
     problem.b.load_from_global_grid_data(bStead)
@@ -620,7 +635,10 @@ def findOptimalAlpha(Ra,Pr,Nx,Nz,starting_alpha,alpha_step,startingGuess,dt,tol,
             steady = RBC_Problem(Ra,Pr,alphaMax,Nx,Nz,time_step=dt)
             steady.initialize()
             steadystate_iters = findSteadyState(steady,guess,2,tol,50,False)
-            steady.saveToFile('optimalState.npy')
+            fileName = 'Ra'+str(Ra)+'Pr'+str(Pr)+'_optimalState.npy'
+            steady.saveToFile(fileName)
+            print("Calculate Nu:")
+            print(steady.calc_Nu())
         return alpha_Vals, Nu_Vals, alphaMax, NuMax
     return alpha_Vals, Nu_Vals, -1, -1
         

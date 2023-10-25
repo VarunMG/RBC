@@ -21,19 +21,43 @@ from RBC_helper import *
 
 #using steady state at low Ra, follow branch upwards
 #uArr, vArr, bArr, phiArr, dt = open_fields('steady_states/Pr7/primary_box/Ra4000Pr7alpha1.5585Nx512Nz256_SS.npy')
-uArr, vArr, bArr, phiArr, dt = open_fields('Ra2000Pr7alpha1.5585Nx256Nz128_T500.npy')
-starting_SS_state = arrsToStateVec(phiArr, bArr)
-startingGuess = starting_SS_state
-starting_dt = dt
-RaVals, NuVals, steady_states = follow_branch(7,1.5585,2500,10000, 500, 256, 128, startingGuess, starting_dt, 1e-8)
-
-#uArr, vArr, bArr, phiArr, dt = open_fields('steady_states/Pr7/primary_box/Ra20000Pr7alpha1.5585Nx512Nz256_SS.npy')
+#uArr, vArr, bArr, phiArr, dt = open_fields('Ra49000Pr7alpha1.5585Nx256Nz128_SS.npy')
 #starting_SS_state = arrsToStateVec(phiArr, bArr)
 #startingGuess = starting_SS_state
 #starting_dt = dt
-#alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(20000,7,512,256,1.5585,0.1,startingGuess,dt,1e-3,True)
-#print("--------")
-#print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
+#RaVals, NuVals, steady_states = follow_branch(7,1.5585,49500,50500, 500, 256, 128, startingGuess, starting_dt, 1e-8)
+
+uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx256Nz128/Ra50000Pr7alpha1.5585Nx256Nz128_SS.npy')
+starting_SS_state = arrsToStateVec(phiArr, bArr)
+startingGuess = starting_SS_state
+starting_dt = dt
+alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(50000,7,256,128,1.5585,0.1,startingGuess,dt,1e-3,True)
+print("--------")
+print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
+
+
+#RaVals = np.arange(27000,50500,500)
+#optAlphas = []
+#optNus = []
+#for i in range(len(RaVals)):
+#    Ra = RaVals[i]
+#    fileName = '/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx256Nz128/Ra'+str(Ra)+'Pr7alpha1.5585Nx256Nz128_SS.npy'
+#    uArr, vArr, bArr, phiArr, dt = open_fields(fileName)
+#    starting_SS_state = arrsToStateVec(phiArr, bArr)
+#    startingGuess = starting_SS_state
+#    starting_dt = dt
+#    alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(Ra,7,256,128,1.5585,0.1,startingGuess,dt,1e-3,True)
+#    print("--------")
+#    print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
+#    optAlphas.append(alphaOpt)
+#    optNus.append(NuOpt)
+#print('FINAL RESULTS')
+#print("Ra Values")
+#print(RaVals)
+#print("optimal alpha values")
+#print(optAlphas)
+#print("optimal Nu values")
+#print(optNus)
 
 #uArr, vArr, bArr, phiArr, dt = open_fields('RB1_steady_states/Pr7/primary_box/Ra2000Pr7alpha1.5585Nx128Nz64data.npy')
 #Pr7steady1 = RBC_Problem(3000,7,1.5585,128,64,'RB1')
