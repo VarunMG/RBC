@@ -11,12 +11,12 @@ from RBC_helper import *
 #RaBase.plot()
 
 #use long run to find the steady state at low Ra
-#RaBase_SS = RBC_Problem(5000,7,1.5585,256,128)
-#RaBase_SS.initialize()
-#uArr, vArr, bArr, phiArr, dt = open_fields('Ra2000Pr7alpha1.5585Nx256Nz128_T500.npy')
-#RaBase_SS_guess = arrsToStateVec(phiArr, bArr)
-#iters = findSteadyState(RaBase_SS, RaBase_SS_guess, 2.0, 1e-3, 20, True)
-#RaBase_SS.saveToFile('Ra5000Pr7alpha1.5585Nx256Nz128_SS.npy')
+RaBase_SS = RBC_Problem(2000,7,1.5585,256,128)
+RaBase_SS.initialize()
+uArr, vArr, bArr, phiArr, dt = open_fields('Ra2000Pr7alpha1.5585Nx256Nz128_T500.npy')
+RaBase_SS_guess = arrsToStateVec(phiArr, bArr)
+iters = findSteadyState(RaBase_SS, RaBase_SS_guess, 2.0, 1e-3, 20, True)
+RaBase_SS.saveToFile('Ra2000Pr7alpha1.5585Nx256Nz128_SS.npy')
 # Ra5000SS.plot()
 
 #using steady state at low Ra, follow branch upwards
@@ -27,13 +27,13 @@ from RBC_helper import *
 #starting_dt = dt
 #RaVals, NuVals, steady_states = follow_branch(7,1.5585,49500,50500, 500, 256, 128, startingGuess, starting_dt, 1e-8)
 
-uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx256Nz128/Ra50000Pr7alpha1.5585Nx256Nz128_SS.npy')
-starting_SS_state = arrsToStateVec(phiArr, bArr)
-startingGuess = starting_SS_state
-starting_dt = dt
-alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(50000,7,256,128,1.5585,0.1,startingGuess,dt,1e-3,True)
-print("--------")
-print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
+#uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx256Nz128/Ra50000Pr7alpha1.5585Nx256Nz128_SS.npy')
+#starting_SS_state = arrsToStateVec(phiArr, bArr)
+#startingGuess = starting_SS_state
+#starting_dt = dt
+#alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(50000,7,256,128,1.5585,0.1,startingGuess,dt,1e-3,True)
+#print("--------")
+#print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
 
 
 #RaVals = np.arange(27000,50500,500)

@@ -465,13 +465,15 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
     #T is time we are integrating out to
     #tol is tolerance for Newton method 
     #max_iters is max Newton iterations that will be done
-    err = 1e10
+    X = guess
+    err = np.linalg.norm(Gt(X,T,problem))
+
+    #err = 1e10
     iters = 0
 
     Nx = problem.Nx
     Nz = problem.Nz
 
-    X = guess
     while err > tol and iters < max_iters:
         #statusFile = open("optimizationStatus.txt","a")
         #statusFile.write("------------------ \n")
@@ -496,6 +498,7 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
         logging.info("Completed iteration: %i", iters)
         iters += 1
         err = np.linalg.norm(Gt(X,T,problem))
+        logger.info("error:" + str(err))
     #statusFile = open("optimizationStatus.txt","a")
     #statusFile.write("loop over \n")
     #statusFile.close()
