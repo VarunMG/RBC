@@ -1,37 +1,41 @@
 from RBC_helper import *
 
 
-
-##conduct long run at low Ra  
-#RaBase = RBC_Problem(2000,7,1.5585,256,128)
+#conduct long run at low Ra  
+#RaBase = RBC_Problem(2000,7,1.5585,60,60)
 #RaBase.initialize()
 #RaBase.solve_system(500,True,False,True)
 #print(RaBase.calc_Nu())
-#RaBase.saveToFile('Ra2000Pr7alpha1.5585Nx256Nz128_T500.npy')
+#RaBase.saveToFile('Ra2000Pr7alpha1.5585Nx60Nz60_T500.npy')
 #RaBase.plot()
 
 #use long run to find the steady state at low Ra
-RaBase_SS = RBC_Problem(2000,7,1.5585,256,128)
-RaBase_SS.initialize()
-uArr, vArr, bArr, phiArr, dt = open_fields('Ra2000Pr7alpha1.5585Nx256Nz128_T500.npy')
-RaBase_SS_guess = arrsToStateVec(phiArr, bArr)
-iters = findSteadyState(RaBase_SS, RaBase_SS_guess, 2.0, 1e-3, 20, True)
-RaBase_SS.saveToFile('Ra2000Pr7alpha1.5585Nx256Nz128_SS.npy')
-# Ra5000SS.plot()
+#RaBase_SS = RBC_Problem(50500,7,1.5585,128,64)
+#RaBase_SS.initialize()
+#uArr, vArr, bArr, phiArr, dt = open_fields('Ra2000Pr7alpha1.5585Nx256Nz128_T500.npy')
+#uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx128Nz64/Ra50000Pr7alpha1.5585Nx128Nz64_SS.npy')
+#RaBase_SS_guess = arrsToStateVec(phiArr, bArr)
+#iters = findSteadyState(RaBase_SS, RaBase_SS_guess, 2.0, 1e-8, 20, True)
+#RaBase_SS.saveToFile('Ra50500Pr7alpha1.5585Nx128Nz64_SS_moreaccurate.npy')
 
 #using steady state at low Ra, follow branch upwards
-#uArr, vArr, bArr, phiArr, dt = open_fields('steady_states/Pr7/primary_box/Ra4000Pr7alpha1.5585Nx512Nz256_SS.npy')
-#uArr, vArr, bArr, phiArr, dt = open_fields('Ra49000Pr7alpha1.5585Nx256Nz128_SS.npy')
-#starting_SS_state = arrsToStateVec(phiArr, bArr)
-#startingGuess = starting_SS_state
-#starting_dt = dt
-#RaVals, NuVals, steady_states = follow_branch(7,1.5585,49500,50500, 500, 256, 128, startingGuess, starting_dt, 1e-8)
+#uArr, vArr, bArr, phiArr, dt = open_fields('Ra3500Pr7alpha1.5585Nx60Nz60_SS.npy')
+#uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx60Nz60/Ra59500Pr7alpha1.5585Nx60Nz60_SS.npy')
+# inputs for follow branch are like: follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, starting_dt, tol)
 
-#uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx256Nz128/Ra50000Pr7alpha1.5585Nx256Nz128_SS.npy')
+uArr, vArr, bArr, phiArr, dt = open_fields('Ra215700Pr7alpha1.5585Nx60Nz60_SS.npy')
+starting_SS_state = arrsToStateVec(phiArr, bArr)
+startingGuess = starting_SS_state
+starting_dt = dt
+RaVals, NuVals, steady_states = follow_branch(7,1.5585,215800,300000, 100, 60, 60, startingGuess, starting_dt, 1e-6)
+
+#uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx128Nz64/Ra50000Pr7alpha1.5585Nx128Nz64_SS.npy')
+#uArr, vArr, bArr, phiArr, dt = open_fields('/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx60Nz60/Ra50000Pr7alpha1.5585Nx60Nz60_SS.npy')
+#uArr, vArr, bArr, phiArr, dt = open_fields('Ra50000Pr7_optimalState.npy')
 #starting_SS_state = arrsToStateVec(phiArr, bArr)
 #startingGuess = starting_SS_state
 #starting_dt = dt
-#alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(50000,7,256,128,1.5585,0.1,startingGuess,dt,1e-3,True)
+#alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(50000,7,128,64,2.23,0.01,startingGuess,dt,1e-8,True)
 #print("--------")
 #print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
 

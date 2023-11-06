@@ -282,6 +282,15 @@ class RBC_Problem:
     def calc_Nu(self):
         Nu = self.flow.volume_integral('Nu')/self.volume
         return Nu
+
+    def calc_Nu2(self):
+        TAvg = d3.Average(self.b,self.coords['x']).evaluate()
+        dzdTAvg = d3.Differentiate(TAvg,self.coords['z']).evaluate()
+        dzdTAvgVals = dzdTAvg.allgather_data('g')
+        #logger.info("Tz averages:")
+        #logger.info(dzdTAvgVals)
+        return -1*dzdTAvgVals[0][0]
+
     
     def plot(self):
         X,Z = np.meshgrid(self.x.ravel(),self.z.ravel())
@@ -458,6 +467,8 @@ def jac_approx(X,dX,F,T,problem):
     GtArr = Gt(X+eps*dX,T,problem).T
     return (GtArr + F.T)/eps
 
+def zeroBoundariesdx(dx_vec):
+    pass
 
 def findSteadyState(problem,guess,T,tol,max_iters,write):
     #problem is an RBC_problem
@@ -466,8 +477,8 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
     #tol is tolerance for Newton method 
     #max_iters is max Newton iterations that will be done
     X = guess
-    err = np.linalg.norm(Gt(X,T,problem))
-
+    err = np.linalg.norm(Gt(X,T,problem))/np.linalg.norm(X)
+    logger.info("initial error: %f", err)
     #err = 1e10
     iters = 0
 
@@ -490,14 +501,15 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
         F = -1*Gt(X,T,problem)
         A = lambda dX : jac_approx(X,dX,F,T,problem)
         A_mat = LinearOperator((2*Nx*Nz,2*Nx*Nz),A)
-        delta_X,code =gmres(A_mat,F,tol=1e-3)
+        delta_X,code =gmres(A_mat,F,tol=1e-6)
         #print(delta_X)
         if code != 0:
             raise("gmres did not converge")
+        Xold = X
         X= X+delta_X
         logging.info("Completed iteration: %i", iters)
         iters += 1
-        err = np.linalg.norm(Gt(X,T,problem))
+        err = np.linalg.norm(Gt(X,T,problem))/np.linalg.norm(Xold)
         logger.info("error:" + str(err))
     #statusFile = open("optimizationStatus.txt","a")
     #statusFile.write("loop over \n")
@@ -552,41 +564,7 @@ def follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, start
     print(Nu_Vals)
     return RaVals, Nu_Vals, steady_states
         
-    
-def optimize_alpha():
-    Ra = 45000
-    Pr = 7
-    Nx = 128
-    Nz = 64
-    Arr,vArr,bArr, phiArr,dt = open_fields('RB1_steady_states/Pr7_remake/primary_box/Ra45000.0Pr7alpha1.5585Nx128Nz64data.npy')
-    guess = arrsToStateVec(phiArr, bArr)
-    alpha_vals = np.linspace(0.5,10,20)
-    steady_states = []
-    Nu_Vals = []
 
-    file_path = 'optimization_outputs/Ra45000/Pr7/Ra'+ str(Ra)+'Pr'+str(Pr)+'alpha' 
-    for alpha in alpha_vals:
-        steady = RBC_Problem(Ra,Pr,alpha,Nx,Nz,'RB1',time_step=dt)
-        steady.initialize()
-        iters =  findSteadyState(steady, guess, 2, 1e-7, 50, False)
-        print('alpha= ', alpha)
-        print("steady state found. Iters= ", iters)
-        steady_states.append(steady)
-        file_name_end = str(alpha)+'Nx'+str(Nx)+'Nz'+str(Nz)+'.npy'
-        filename = file_path + file_name_end
-        steady.saveToFile(filename)
-        Nu = steady.calc_Nu()
-        Nu_Vals.append(Nu)
-        
-        steady.phi.change_scales(1)
-        steady.b.change_scales(1)
-        steady_b = steady.b.allgather_data('g')
-        steady_phi = steady.phi.allgather_data('g')
-        guess = arrsToStateVec(steady_phi, steady_b)
-        dt = steady.time_step
-    
-    return alpha_vals, Nu_Vals, steady_states
-        
 def foundOptimalNu(NuArr):
     if len(NuArr) >= 3 and (NuArr[-2] > NuArr[-3]) and (NuArr[-2] > NuArr[-1]):
         return True
@@ -610,10 +588,14 @@ def findOptimalAlpha(Ra,Pr,Nx,Nz,starting_alpha,alpha_step,startingGuess,dt,tol,
         steadystate_iters = findSteadyState(steady, guess, 2, tol, 50, False)
         print('alpha=',alpha)
         print("steady state found. Iters=",steadystate_iters)
-        Nu= steady.calc_Nu()
-        print("Nu value:",Nu)
+        Nu1 = steady.calc_Nu()
+        Nu2 = steady.calc_Nu2()
+        logger.info("THE DIFFERENTLY COMPUTED NU VALS ARE:")
+        logger.info("Nu1= %f",Nu1)
+        logger.info("Nu2= %f",Nu2)
+        #print("Nu value:",Nu)
         alpha_Vals.append(alpha)
-        Nu_Vals.append(Nu)
+        Nu_Vals.append(Nu2)
         alpha = alpha+alpha_step
         found = foundOptimalNu(Nu_Vals)
         if found:
