@@ -457,34 +457,94 @@ def Gt(X,T,problem):
     return Gt_Vec
 
 def jac_approx(X,dX,F,T,problem):
+    Nx = problem.Nx
+    Nz = problem.Nz
     #print(dX)
+    #dX = zeroBoundariesdx(dX,Nx,Nz)
     mach_eps = np.finfo(float).eps
     normX = np.linalg.norm(X)
     normdX = np.linalg.norm(dX)
     dotprod = np.dot(X,dX)
+    logger.info("norm dx: %f",normdX)
     eps = (np.sqrt(mach_eps)/(normdX**2))*max(dotprod,normdX)
+    logger.info("1e6*esp: %f", 1e6*eps)
     #eps = 1e-3
     GtArr = Gt(X+eps*dX,T,problem).T
     return (GtArr + F.T)/eps
 
-def zeroBoundariesdx(dx_vec):
-    pass
+def zeroBoundariesdx(dx_vec,Nx, Nz):
+    dxPhi, dxb = stateToArrs(dx_vec,Nx,Nz)
+    #logger.info("dxphi:")
+    #logger.info(dxPhi.shape)
+    #logger.info("dxb:")
+    #logger.info(dxb.shape)
+    dxPhi[:,0] = np.zeros(Nx)
+    dxPhi[:,Nz-1] = np.zeros(Nx)
+    dxb[:,0] = np.zeros(Nx)
+    dxb[:,Nz-1] = np.zeros(Nx)
+    #logger.info("dxphi:")
+    #logger.info(dxPhi)
+    #logger.info("dxb:")
+    #logger.info(dxb)
+    return arrsToStateVec(dxPhi,dxb)
+
+
+def findSteadyState2(problem,guess,T,tol,max_iters,empty_arg):
+    Nx = problem.Nx
+    Nz = problem.Nz
+    #Delta_X = np.random.random(len(guess))
+    #Delta_X = zeroBoundariesdx(Delta_X,Nx,Nz)
+    norm_X0 = np.linalg.norm(guess)
+    newtonStep = 0
+    found = False
+    X = guess
+    for i in range(max_iters):
+        logger.info("------------------------")
+        logger.info("At iteration:" + str(i))
+        GT = Gt(X,T,problem)
+        normGT = np.linalg.norm(GT)/norm_X0
+        logger.info("error:")
+        logger.info(normGT)
+        if normGT < tol:
+            logger.info("solution within tolerance")
+            found = True
+            break
+        b = -1*GT
+        A = lambda dX: jac_approx(X,dX,b,T,problem)
+        A_matrix = LinearOperator((2*Nx*Nz,2*Nx*Nz),matvec=A)
+        Delta_X,code =gmres(A_matrix,b,tol=1e-3)#maxiter=500)
+        if code != 0:
+            logger.info('WARNING: GMRES FAILED TO CONVERGE')
+        X = X + Delta_X
+        
+    logger.info("steady state found!")
+    phiStead, bStead = stateToArrs(X,Nx,Nz)
+    problem.phi.load_from_global_grid_data(phiStead)
+    problem.b.load_from_global_grid_data(bStead)
+    uStead, vStead = problem.phi_lap.getVel(phiStead)
+    problem.u.load_from_global_grid_data(uStead)
+    problem.v.load_from_global_grid_data(vStead)
+    return X,i
+
+
+
 
 def findSteadyState(problem,guess,T,tol,max_iters,write):
     #problem is an RBC_problem
     #guess is a guess for the state vec
     #T is time we are integrating out to
     #tol is tolerance for Newton method 
-    #max_iters is max Newton iterations that will be done
+    #imax_iters is max Newton iterations that will be done
     X = guess
-    err = np.linalg.norm(Gt(X,T,problem))/np.linalg.norm(X)
+    normX0 = np.linalg.norm(X)
+    err = np.linalg.norm(Gt(X,T,problem))/normX0
     logger.info("initial error: %f", err)
     #err = 1e10
     iters = 0
 
     Nx = problem.Nx
     Nz = problem.Nz
-
+    delta_X = np.zeros(len(X))
     while err > tol and iters < max_iters:
         #statusFile = open("optimizationStatus.txt","a")
         #statusFile.write("------------------ \n")
@@ -500,16 +560,15 @@ def findSteadyState(problem,guess,T,tol,max_iters,write):
 
         F = -1*Gt(X,T,problem)
         A = lambda dX : jac_approx(X,dX,F,T,problem)
-        A_mat = LinearOperator((2*Nx*Nz,2*Nx*Nz),A)
-        delta_X,code =gmres(A_mat,F,tol=1e-6)
+        A_mat = LinearOperator((2*Nx*Nz,2*Nx*Nz),matvec=A)
+        delta_X,code =gmres(A_mat,F,tol=1e-3)#,x0=delta_X)
         #print(delta_X)
         if code != 0:
             raise("gmres did not converge")
-        Xold = X
         X= X+delta_X
         logging.info("Completed iteration: %i", iters)
         iters += 1
-        err = np.linalg.norm(Gt(X,T,problem))/np.linalg.norm(Xold)
+        err = np.linalg.norm(Gt(X,T,problem))/normX0
         logger.info("error:" + str(err))
     #statusFile = open("optimizationStatus.txt","a")
     #statusFile.write("loop over \n")
