@@ -102,42 +102,42 @@ def zeroBoundariesdx(dx_vec,Nx, Nz):
     return arrsToStateVec(dxPhi,dxb)
 
 
-def findSteadyState2(problem,guess,T,tol,max_iters,empty_arg):
-    Nx = problem.Nx
-    Nz = problem.Nz
-    #Delta_X = np.random.random(len(guess))
-    #Delta_X = zeroBoundariesdx(Delta_X,Nx,Nz)
-    norm_X0 = np.linalg.norm(guess)
-    newtonStep = 0
-    found = False
-    X = guess
-    for i in range(max_iters):
-        logger.info("------------------------")
-        logger.info("At iteration:" + str(i))
-        GT = Gt(X,T,problem)
-        normGT = np.linalg.norm(GT)/norm_X0
-        logger.info("error:")
-        logger.info(normGT)
-        if normGT < tol:
-            logger.info("solution within tolerance")
-            found = True
-            break
-        b = -1*GT
-        A = lambda dX: jac_approx(X,dX,b,T,problem)
-        A_matrix = LinearOperator((2*Nx*Nz,2*Nx*Nz),matvec=A)
-        Delta_X,code =gmres(A_matrix,b,tol=1e-3)#maxiter=500)
-        if code != 0:
-            logger.info('WARNING: GMRES FAILED TO CONVERGE')
-        X = X + Delta_X
+#def findSteadyState2(problem,guess,T,tol,max_iters,empty_arg):
+#    Nx = problem.Nx
+#    Nz = problem.Nz
+#    #Delta_X = np.random.random(len(guess))
+#    #Delta_X = zeroBoundariesdx(Delta_X,Nx,Nz)
+#    norm_X0 = np.linalg.norm(guess)
+#    newtonStep = 0
+#    found = False
+#    X = guess
+#    for i in range(max_iters):
+#        logger.info("------------------------")
+#        logger.info("At iteration:" + str(i))
+#        GT = Gt(X,T,problem)
+#        normGT = np.linalg.norm(GT)/norm_X0
+#        logger.info("error:")
+#        logger.info(normGT)
+#        if normGT < tol:
+#            logger.info("solution within tolerance")
+#            found = True
+#            break
+#        b = -1*GT
+#        A = lambda dX: jac_approx(X,dX,b,T,problem)
+#        A_matrix = LinearOperator((2*Nx*Nz,2*Nx*Nz),matvec=A)
+#        Delta_X,code =gmres(A_matrix,b,tol=1e-3)#maxiter=500)
+#        if code != 0:
+#            logger.info('WARNING: GMRES FAILED TO CONVERGE')
+#        X = X + Delta_X
         
-    logger.info("steady state found!")
-    phiStead, bStead = stateToArrs(X,Nx,Nz)
-    problem.phi.load_from_global_grid_data(phiStead)
-    problem.b.load_from_global_grid_data(bStead)
-    uStead, vStead = problem.phi_lap.getVel(phiStead)
-    problem.u.load_from_global_grid_data(uStead)
-    problem.v.load_from_global_grid_data(vStead)
-    return X,i
+#    logger.info("steady state found!")
+#    phiStead, bStead = stateToArrs(X,Nx,Nz)
+#    problem.phi.load_from_global_grid_data(phiStead)
+#    problem.b.load_from_global_grid_data(bStead)
+#    uStead, vStead = problem.phi_lap.getVel(phiStead)
+#    problem.u.load_from_global_grid_data(uStead)
+#    problem.v.load_from_global_grid_data(vStead)
+#    return X,i
 
 
 
