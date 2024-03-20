@@ -6,11 +6,19 @@ from matplotlib import cm
 logger = logging.getLogger(__name__)
 
 
+#def calcNu(b_var):
+#    temp_field = b_var.allgather_data('g')
+#    vert_means = np.mean(temp_field.T,axis=1)
+#    return 1/(8*np.max(vert_means))
+
 def calcNu(b_var):
-    temp_field = b_var.allgather_data('g')
-    vert_means = np.mean(temp_field.T,axis=1)
-    return 1/(8*np.max(vert_means))
-    
+    TAvg = d3.Average(b_var,coords['x']).evaluate()
+    dzdTAvg = d3.Differentiate(TAvg,coords['z']).evaluate()
+    dzdTAvgVals = dzdTAvg.allgather_data('g')
+    #logger.info("Tz averages:")
+    #logger.info(dzdTAvgVals)
+    return -1*dzdTAvgVals[0][0]
+
 def writeNu(fileName,tVals,NuVals):
     try:
         with open(fileName,'wb') as NuData:
@@ -25,17 +33,27 @@ def calcCorrelation(field1,field2):
     field2Arr = field2.allgather_data('g').ravel()
     costheta = np.dot(field1Arr,field2Arr)/(np.linalg.norm(field1Arr)*np.linalg.norm(field2Arr))
     return costheta
-    
+
+def writeFields(fileName,time,b_var,u_var,v_var):
+    b_var.change_scales(1)
+    u_var.change_scales(1)
+    v_var.change_scales(1)
+    with open(fileName,'wb') as fluidData:
+        np.save(fluidData,time)
+        np.save(fluidData,b_var.allgather_data('g').T)
+        np.save(fluidData,u_var.allgather_data('g').T)
+        np.save(fluidData,v_var.allgather_data('g').T)
+    return 1
 
 # Parameters
 #Lx, Lz = 4, 1
 #Lz = 2
 alpha = 1.5585
-Nx, Nz = 256, 128
-Rayleigh = 50000
+Nx, Nz = 60, 100
+Rayleigh = 100000
 Prandtl = 7
 dealias = 3/2
-stop_sim_time = 100
+stop_sim_time = 500
 timestepper = d3.RK222
 max_timestep = 0.125
 dtype = np.float64
@@ -113,9 +131,10 @@ solver = problem.build_solver(timestepper)
 solver.stop_sim_time = stop_sim_time
 
 # Initial conditions
-b.fill_random('g', seed=42, distribution='normal', scale=1e-3) # Random noise
-b['g'] *= (1-z) * (1+z) # Damp noise at walls
+#b.fill_random('g', seed=42, distribution='normal', scale=1e-3) # Random noise
+#b['g'] *= (1-z) * (1+z) # Damp noise at walls
 b['g'] += - z # Add linear background
+b['g'] += np.cos(alpha*x)*np.cos(np.pi*z/2)
 
 # Analysis
 snapshots = solver.evaluator.add_file_handler('snapshots', sim_dt=0.25, max_writes=50)
@@ -146,20 +165,34 @@ startup_iter = 10
 
 tVals = []
 NuVals = []
-NuFileName = 'NuData.npy'
+#NuFileName = 'NuData.npy'
+
+genFileName = 'Ra'+str(Rayleigh)+'Pr'+str(Prandtl)+'alpha'+str(alpha)+'Nx'+str(Nx)+'Nz'+str(Nz)+'_T' + str(stop_sim_time)
+auxDataFile = genFileName + '_auxData/'
+NuFileName = auxDataFile + genFileName + '_NuData.npy'
+vertMeanFileName = auxDataFile + genFileName + '_vertMeans.npy'
+fluidDataFileName = genFileName + '_runOutput/fluidData'
+
 try:
     logger.info('Starting main loop')
     while solver.proceed:
         timestep = CFL.compute_timestep()
         solver.step(timestep)
         flow_Nu = flow.volume_integral('Nu')/volume
-        tVals.append(solver.sim_time)
-        NuVals.append(flow_Nu)
-        writeNu(NuFileName,tVals,NuVals)
+        #tVals.append(solver.sim_time)
+        #NuVals.append(flow_Nu)
+        #writeNu(NuFileName,tVals,NuVals)
+        ####we try to make all the sin terms 0 in the horizontal direction to enforce symmetry
+        b['c'][1::2,:] = 0
+        v['c'][1::2,:] = 0
+        phi['c'][1::2,:] = 0
         if (solver.iteration-1) % 10 == 0:
             #max_Re = flow.max('Re')
             #logger.info('Iteration=%i, Time=%e, dt=%e, max Re=%f' %(solver.iteration, solver.sim_time, timestep, max_Re))
             logger.info('Iteration=%i, Time=%e, dt=%e, Nu=%f' %(solver.iteration, solver.sim_time, timestep, flow_Nu))
+        if (solver.iteration-1) %10 == 0:
+            fileName = fluidDataFileName + str(round(100000*solver.sim_time)/100000) + '.npy'
+            write = writeFields(fileName,solver.sim_time,b,u,v)
 except:
     logger.error('Exception raised, triggering end of main loop.')
     raise

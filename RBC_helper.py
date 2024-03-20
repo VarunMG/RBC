@@ -59,13 +59,14 @@ class Laplacian_Problem:
     
     def getVel(self,phiArr):
         self.phi.load_from_global_grid_data(phiArr)
+        #print("trying to get vels")
         self.solver.solve()
+        #print("getVel 3")
         uArr = self.u.allgather_data('g')
         vArr = self.v.allgather_data('g')
         return uArr, vArr
 
-        
-        
+         
 
 class RBC_Problem:
     def __init__(self,Ra,Pr,alpha,Nx,Nz,time_step=None,initial_u=None,initial_v=None,initial_phi=None,initial_b=None):
@@ -252,6 +253,9 @@ class RBC_Problem:
                 else:
                     timestep = self.CFL.compute_timestep()
                 self.solver.step(timestep)
+                self.b['c'][1::2,:] = 0
+                self.v['c'][1::2,:] = 0
+                self.phi['c'][1::2,:] = 0
                 if (self.solver.iteration-1) % 10 == 0:
                     if anim_frames:
                         self.b.change_scales(1)

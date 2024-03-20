@@ -1,93 +1,133 @@
 from RBC_helper import *
 from steady_state_helper3 import *
 
+def saveArrs(uArr, vArr, bArr, phiArr,dt,outputFile):
+    with open(outputFile,'wb') as outFile:
+        np.save(outFile,uArr)
+        np.save(outFile,vArr)
+        np.save(outFile,bArr)
+        np.save(outFile,phiArr)
+        np.save(outFile,dt)
+    return 0
+
 
 def longRun(Ra,Pr,alpha,Nx,Nz,T):
     #conduct long run at low Ra  
-    RaBase = RBC_Problem(2000,7,1.5585,70,100)
+    RaBase = RBC_Problem(Ra,Pr,alpha,Nx,Nz)
     RaBase.initialize()
-    RaBase.solve_system(500,True,False,True)
+    RaBase.solve_system(T,True,False,True)
     print(RaBase.calc_Nu())
-    RaBase.saveToFile('Ra2000Pr7alpha1.5585Nx70Nz100_T500.npy')
-    RaBase.plot()
+    saveFile = 'Ra'+str(Ra)+'Pr'+str(Pr)+'alpha'+str(alpha)+'Nx'+str(Nx)+'Nz'+str(Nz)+'_T'+str(T)+'.npy'
+    RaBase.saveToFile(saveFile)
 
-def baseSS(Ra,Pr,alpha,Nx,Nz,T,guessFile):
+def getSteady(Ra,Pr,alpha,Nx,Nz,T,guessFile):
     #use long run to find the steady state at low Ra
-    RaBase_SS = RBC_Problem(110000,7,1.5585,70,100)
+    RaBase_SS = RBC_Problem(Ra,Pr,alpha,Nx,Nz)
     RaBase_SS.initialize()
-    uArr, vArr, bArr, phiArr, dt = open_fields('Ra110000.00000000001Pr7alpha1.5585Nx70Nz100_SS.npy')
+    uArr, vArr, bArr, phiArr, dt = open_fields(guessFile)
     RaBase_SS_guess = arrsToStateVec(phiArr, bArr)
-    result = findSteadyState(RaBase_SS, RaBase_SS_guess, 2.0, 1e-6, 20,True)
-    RaBase_SS.saveToFile('Ra110000Pr7alpha1.5585Nx70Nz100_SS.npy')
+    result = findSteadyState(RaBase_SS, RaBase_SS_guess, T, 1e-6, 20,True)
+    saveFile = 'Ra'+str(Ra)+'Pr'+str(Pr)+'alpha'+str(alpha)+'Nx'+str(Nx)+'Nz'+str(Nz)+'_SS.npy'
+    RaBase_SS.saveToFile(saveFile)
+
+def refine(uArr,vArr,bArr,phiArr,alpha,Nx,Nz,newscale):
+    ##run this using only ONE processor or else will not work
+    print(uArr.shape)
+    print("--------")
+    coords = d3.CartesianCoordinates('x', 'z')
+    dist = d3.Distributor(coords, dtype=np.float64)
+    xbasis = d3.RealFourier(coords['x'], Nx, bounds=(-np.pi/alpha, np.pi/alpha), dealias=3/2)
+    zbasis = d3.Chebyshev(coords['z'], Nz, bounds=(-1, 1), dealias=3/2)
+    u = dist.Field(name='u', bases=(xbasis, zbasis))
+    v = dist.Field(name='v', bases=(xbasis, zbasis))
+    b = dist.Field(name='b', bases=(xbasis, zbasis))
+    phi = dist.Field(name='phi', bases=(xbasis, zbasis))
+    u.load_from_global_grid_data(uArr)
+    v.load_from_global_grid_data(vArr)
+    b.load_from_global_grid_data(bArr)
+    phi.load_from_global_grid_data(phiArr)
+    u.change_scales(newscale)
+    v.change_scales(newscale)
+    b.change_scales(newscale)
+    phi.change_scales(newscale)
+    newuArr = u['g']
+    newvArr = v['g']
+    newbArr = b['g']
+    newphiArr = phi['g']
+    print(newuArr.shape)
+    return newuArr, newvArr, newbArr, newphiArr
+
+
+
+
+
+
+###################
+### refine grid ###
+###################
+'''
+fileName = 'Ra90519.0Pr7alpha1.5585Nx420Nz600_SS.npy'
+refinedFileName = 'Ra90519.0Pr7alpha1.5585Nx504Nz720_SS_refined.npy'
+alpha = 1.5585
+
+scaleFactor = 1.2
+NxOld = 420
+NzOld = 600
+
+
+uArr, vArr, bArr, phiArr, dt = open_fields(fileName)
+uRef, vRef, bRef, phiRef = refine(uArr,vArr,bArr, phiArr,alpha,NxOld,NzOld,scaleFactor)
+saveArrs(uRef,vRef,bRef,phiRef,dt,refinedFileName)
+'''
+################
+### Long run ###
+################
+#Ra=2000
+#Pr=7
+#alpha=1.5585
+#Nx=70
+#Nz=100
+#T=500
+#longRun(Ra,Pr,alpha,Nx,Nz,T)
+
+#########################################
+### For Finding a single steady state ###
+#########################################
+'''
+Ra=90519
+Pr=7
+alpha=1.5585
+Nx=504
+Nz=720
+T=2.0
+guessFile = 'Ra90519.0Pr7alpha1.5585Nx504Nz720_SS_refined.npy'
+getSteady(Ra,Pr,alpha,Nx,Nz,T,guessFile)
 
 #using steady state at low Ra, follow branch upwards
-uArr, vArr, bArr, phiArr, dt = open_fields('Ra459497.0Pr7alpha1.5585Nx70Nz100_SS.npy')
 #for steady state helper 3: follow_branch(Pr,alpha,Ra_start,num_steps,Ra_step, Nx, Nz, startingGuess, starting_dt, tol):
-# inputs for follow branch are like: follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, starting_dt, tol)
+#inputs for follow branch are like: follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, starting_dt, tol)
+'''
+startFile = 'Ra90519Pr7alpha1.5585Nx504Nz720_SS.npy'
+uArr, vArr, bArr, phiArr, dt = open_fields(startFile)
 starting_SS_state = arrsToStateVec(phiArr, bArr)
 startingGuess = starting_SS_state
 starting_dt = dt
-RaVals, NuVals, steady_states = follow_branch(7,1.5585,459497,50, 1.05, 70, 100, startingGuess, starting_dt, 1e-6)
 
-#uArr, vArr, bArr, phiArr, dt = open_fields('Ra100000Pr100alpha2.9634303295710804_optimalState.npy')
+startingRa = 90519
+Pr = 7
+alpha = 1.5585
+Nx = 504
+Nz = 720
+numSteps = 15
+RaStep = 1.1
+
+RaVals, NuVals = follow_branch(Pr,alpha,startingRa,numSteps, RaStep, Nx, Nz, startingGuess, starting_dt, 1e-6)
+
+#uArr, vArr, bArr, phiArr, dt = open_fields('Ra50000Pr7alpha1.5585Nx70Nz100_SS.npy')
 #starting_SS_state = arrsToStateVec(phiArr, bArr)
 #startingGuess = starting_SS_state
 #starting_dt = dt
-#alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(100000,100,256,128,3.0,0.1,startingGuess,dt,1e-6,True)
+#alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(50000,7,70,100,1.5585,0.1,startingGuess,dt,1e-6,True)
 #print("--------")
 #print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
 
-
-#RaVals = np.arange(27000,50500,500)
-#optAlphas = []
-#optNus = []
-#for i in range(len(RaVals)):
-#    Ra = RaVals[i]
-#    fileName = '/grad/gudibanda/RBC/steady_states/Pr7/primary_box/Nx256Nz128/Ra'+str(Ra)+'Pr7alpha1.5585Nx256Nz128_SS.npy'
-#    uArr, vArr, bArr, phiArr, dt = open_fields(fileName)
-#    starting_SS_state = arrsToStateVec(phiArr, bArr)
-#    startingGuess = starting_SS_state
-#    starting_dt = dt
-#    alpha_Vals, Nu_Vals, alphaOpt, NuOpt = findOptimalAlpha(Ra,7,256,128,1.5585,0.1,startingGuess,dt,1e-3,True)
-#    print("--------")
-#    print(alpha_Vals,Nu_Vals,alphaOpt,NuOpt)
-#    optAlphas.append(alphaOpt)
-#    optNus.append(NuOpt)
-#print('FINAL RESULTS')
-#print("Ra Values")
-#print(RaVals)
-#print("optimal alpha values")
-#print(optAlphas)
-#print("optimal Nu values")
-#print(optNus)
-
-#uArr, vArr, bArr, phiArr, dt = open_fields('RB1_steady_states/Pr7/primary_box/Ra2000Pr7alpha1.5585Nx128Nz64data.npy')
-#Pr7steady1 = RBC_Problem(3000,7,1.5585,128,64,'RB1')
-#Pr7steady1.initialize()
-#Pr7guess1 = arrsToStateVec(phiArr,bArr)
-#iters1 = steady_state_finder(Pr7steady1,Pr7guess1,2,1e-2,50,False)
-#follow_branch()
-
-#alpha_vals, Nu_Vals, steady_states = optimize_alpha()
-#print(alpha_vals)
-#print(Nu_Vals)
-
-# IH_test= RBC_Problem(1000,100,1.5585,256,128,'IH1')
-# IH_test.initialize()
-# IH_test.solve_system(30)
-# IH_test.saveToFile('IH_time_stepping/Ra1000Pr100alpha1.5585Nx256Nz128.npy')
-
-
-# alpha = 1.99945
-# RBCLong = RBC_Problem(1150,100,alpha,256,128,'IH1')
-# RBCLong.initialize()
-# RBCLong.solve_system(100,True,False,True)
-#RBCLong.saveToFile('temp_outputs/IH1_Ra4000Pr7alpha0.3141Nx512Nz256_T50.npy')
-
-
-#tVals = RBCLong.tVals
-#NuVals = RBCLong.NuVals
-#file_name = 'temp_outputs/NuVals_IH1_Ra4000Pr7alpha0.3141Nx512Nz256_T50.npy'
-#with open(file_name,'wb') as outFile:
-#    np.save(outFile,NuVals)
-#    np.save(outFile,tVals)

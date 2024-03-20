@@ -52,6 +52,9 @@ def stateToArrs(X,Nx,Nz):
     bArr = np.reshape(bArr,(-1,Nz))
     return phiArr, bArr
 
+def makeSymmetric():
+    pass
+
 def Gt(X,T,problem):
     phiArr, bArr = stateToArrs(X,problem.Nx,problem.Nz)
     uArr, vArr = problem.phi_lap.getVel(phiArr)
