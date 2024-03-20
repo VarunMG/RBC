@@ -1,5 +1,5 @@
 from RBC_helper import *
-
+from scipy import optimize
 
 ######################################
 ### to load arrays from .npy files ###
@@ -52,9 +52,6 @@ def stateToArrs(X,Nx,Nz):
     bArr = np.reshape(bArr,(-1,Nz))
     return phiArr, bArr
 
-def makeSymmetric():
-    pass
-
 def Gt(X,T,problem):
     phiArr, bArr = stateToArrs(X,problem.Nx,problem.Nz)
     uArr, vArr = problem.phi_lap.getVel(phiArr)
@@ -72,37 +69,37 @@ def Gt(X,T,problem):
     logger.info("flow map call")
     return Gt_Vec
 
-def jac_approx(X,dX,F,T,problem):
-    Nx = problem.Nx
-    Nz = problem.Nz
-    #print(dX)
-    #dX = zeroBoundariesdx(dX,Nx,Nz)
-    mach_eps = np.finfo(float).eps
-    normX = np.linalg.norm(X)
-    normdX = np.linalg.norm(dX)
-    dotprod = np.dot(X,dX)
-    logger.info("norm dx: %f",normdX)
-    eps = (np.sqrt(mach_eps)/(normdX**2))*max(dotprod,normdX)
-    logger.info("1e6*esp: %f", 1e6*eps)
-    #eps = 1e-3
-    GtArr = Gt(X+eps*dX,T,problem).T
-    return (GtArr + F.T)/eps
+#def jac_approx(X,dX,F,T,problem):
+#    Nx = problem.Nx
+#    Nz = problem.Nz
+#    #print(dX)
+#    #dX = zeroBoundariesdx(dX,Nx,Nz)
+#    mach_eps = np.finfo(float).eps
+#    normX = np.linalg.norm(X)
+#    normdX = np.linalg.norm(dX)
+#    dotprod = np.dot(X,dX)
+#    logger.info("norm dx: %f",normdX)
+#    eps = (np.sqrt(mach_eps)/(normdX**2))*max(dotprod,normdX)
+#    logger.info("1e6*esp: %f", 1e6*eps)
+#    #eps = 1e-3
+#    GtArr = Gt(X+eps*dX,T,problem).T
+#    return (GtArr + F.T)/eps
 
-def zeroBoundariesdx(dx_vec,Nx, Nz):
-    dxPhi, dxb = stateToArrs(dx_vec,Nx,Nz)
-    #logger.info("dxphi:")
-    #logger.info(dxPhi.shape)
-    #logger.info("dxb:")
-    #logger.info(dxb.shape)
-    dxPhi[:,0] = np.zeros(Nx)
-    dxPhi[:,Nz-1] = np.zeros(Nx)
-    dxb[:,0] = np.zeros(Nx)
-    dxb[:,Nz-1] = np.zeros(Nx)
-    #logger.info("dxphi:")
-    #logger.info(dxPhi)
-    #logger.info("dxb:")
-    #logger.info(dxb)
-    return arrsToStateVec(dxPhi,dxb)
+#def zeroBoundariesdx(dx_vec,Nx, Nz):
+#    dxPhi, dxb = stateToArrs(dx_vec,Nx,Nz)
+#    #logger.info("dxphi:")
+#    #logger.info(dxPhi.shape)
+#    #logger.info("dxb:")
+#    #logger.info(dxb.shape)
+#    dxPhi[:,0] = np.zeros(Nx)
+#    dxPhi[:,Nz-1] = np.zeros(Nx)
+#    dxb[:,0] = np.zeros(Nx)
+#    dxb[:,Nz-1] = np.zeros(Nx)
+#    #logger.info("dxphi:")
+#    #logger.info(dxPhi)
+#    #logger.info("dxb:")
+#    #logger.info(dxb)
+#    return arrsToStateVec(dxPhi,dxb)
 
 
 #def findSteadyState2(problem,guess,T,tol,max_iters,empty_arg):
@@ -142,93 +139,137 @@ def zeroBoundariesdx(dx_vec,Nx, Nz):
 #    problem.v.load_from_global_grid_data(vStead)
 #    return X,i
 
-
-
-
 def findSteadyState(problem,guess,T,tol,max_iters,write):
-    #problem is an RBC_problem
-    #guess is a guess for the state vec
-    #T is time we are integrating out to
-    #tol is tolerance for Newton method 
-    #imax_iters is max Newton iterations that will be done
-    X = guess
-    normX0 = np.linalg.norm(X)
-    err = np.linalg.norm(Gt(X,T,problem))/normX0
-    logger.info("initial error: %f", err)
-    #err = 1e10
-    iters = 0
+    problem.dt = 1e-4
+    normX0 = np.linalg.norm(guess)
+    GT_func = lambda X: Gt(X,T,problem)
+    #err_func = lambda X: np.linalg.norm(GT_func(X))/normX0
+    #print("entering newton krylov")
+    sol=optimize.newton_krylov(GT_func,guess,verbose=True,maxiter=20)#,tol_norm=err_func)
+    return sol
 
-    Nx = problem.Nx
-    Nz = problem.Nz
-    delta_X = np.zeros(len(X))
-    while err > tol and iters < max_iters:
-        #statusFile = open("optimizationStatus.txt","a")
-        #statusFile.write("------------------ \n")
-        #statusText = 'iteration: ' + str(iters) + '\n'
-        #statusFile.write(statusText)
-        #statusFile.close()
-        logger.info("---------------------")
-        logger.info("iteration:" + str(iters))
-        if write == 'y':
-            print("iter: ",iters)
-            print(X)
-            print("-------------")
 
-        F = -1*Gt(X,T,problem)
-        A = lambda dX : jac_approx(X,dX,F,T,problem)
-        A_mat = LinearOperator((2*Nx*Nz,2*Nx*Nz),matvec=A)
-        delta_X,code =gmres(A_mat,F,tol=1e-3)#,x0=delta_X)
-        #print(delta_X)
-        if code != 0:
-            raise("gmres did not converge")
-        X= X+delta_X
-        logging.info("Completed iteration: %i", iters)
-        iters += 1
-        err = np.linalg.norm(Gt(X,T,problem))/normX0
-        logger.info("error:" + str(err))
-    #statusFile = open("optimizationStatus.txt","a")
-    #statusFile.write("loop over \n")
-    #statusFile.close()
-    logger.info("loop over")
-    phiStead, bStead = stateToArrs(X,Nx,Nz)
-    problem.phi.load_from_global_grid_data(phiStead)
-    problem.b.load_from_global_grid_data(bStead)
-    uStead, vStead = problem.phi_lap.getVel(phiStead)
-    problem.u.load_from_global_grid_data(uStead)
-    problem.v.load_from_global_grid_data(vStead)
-    return iters
+#def findSteadyState(problem,guess,T,tol,max_iters,write):
+#    #problem is an RBC_problem
+#    #guess is a guess for the state vec
+#    #T is time we are integrating out to
+#    #tol is tolerance for Newton method 
+#    #imax_iters is max Newton iterations that will be done
+#    X = guess
+#    normX0 = np.linalg.norm(X)
+#    err = np.linalg.norm(Gt(X,T,problem))/normX0
+#    logger.info("initial error: %f", err)
+#    #err = 1e10
+#    iters = 0
+#
+#    Nx = problem.Nx
+#    Nz = problem.Nz
+#    delta_X = np.zeros(len(X))
+#    while err > tol and iters < max_iters:
+#        #statusFile = open("optimizationStatus.txt","a")
+#        #statusFile.write("------------------ \n")
+#        #statusText = 'iteration: ' + str(iters) + '\n'
+#        #statusFile.write(statusText)
+#        #statusFile.close()
+#        logger.info("---------------------")
+#        logger.info("iteration:" + str(iters))
+#        if write == 'y':
+#            print("iter: ",iters)
+#            print(X)
+#            print("-------------")
+#
+#        F = -1*Gt(X,T,problem)
+#        A = lambda dX : jac_approx(X,dX,F,T,problem)
+#        A_mat = LinearOperator((2*Nx*Nz,2*Nx*Nz),matvec=A)
+#        delta_X,code =gmres(A_mat,F,tol=1e-3)#,x0=delta_X)
+#        #print(delta_X)
+#        if code != 0:
+#            raise("gmres did not converge")
+#        X= X+delta_X
+#        logging.info("Completed iteration: %i", iters)
+#        iters += 1
+#        err = np.linalg.norm(Gt(X,T,problem))/normX0
+#        logger.info("error:" + str(err))
+#    #statusFile = open("optimizationStatus.txt","a")
+#    #statusFile.write("loop over \n")
+#    #statusFile.close()
+#    logger.info("loop over")
+#    phiStead, bStead = stateToArrs(X,Nx,Nz)
+#    problem.phi.load_from_global_grid_data(phiStead)
+#    problem.b.load_from_global_grid_data(bStead)
+#    uStead, vStead = problem.phi_lap.getVel(phiStead)
+#    problem.u.load_from_global_grid_data(uStead)
+#    problem.v.load_from_global_grid_data(vStead)
+#    return iters
 
-def follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, starting_dt, tol):
+#def follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, starting_dt, tol):
+#    #Ra_start is starting Rayleigh number
+#    #Ra_end is the ending Rayleigh number
+#    #Ra_step is the step in Ra taken when increasing Ra
+#    RaVals = np.arange(Ra_start,Ra_end,Ra_step)
+#    #RaVals = np.arange(49750,6e4,5e2)
+#    steady_states = []
+#    Nu_Vals = []
+#    guess = startingGuess
+#    dt = starting_dt
+#    #guess = np.zeros(2*Nx*Nz)
+#    #dt = 0.125
+#    #filename_start = 'RB1_steady_states/Pr7_redo/primary_box/'
+#    filename_end = 'Pr'+str(Pr)+'alpha'+str(alpha)+'Nx' + str(Nx) + 'Nz' + str(Nz) + '_SS.npy'
+#    #filename = 'branch_tester/Pr100'
+#    for Ra in RaVals:
+#        steady = RBC_Problem(Ra,Pr,alpha,Nx,Nz,time_step=dt)
+#        steady.initialize()
+#        iters = findSteadyState(steady, guess, 2, tol, 50, False)
+#        #print('Ra= ',Ra)
+#        #print('steady state found . Iters = ', iters)
+#        steady_states.append(steady)
+#        Nu = steady.calc_Nu()
+#        Nu_Vals.append(Nu)
+#        logging.info("Ra= %i", Ra)
+#        logging.info('Steady State Found. Iters = %i', iters)
+#        logging.info("Nu= %f", Nu)
+#        saveFile = 'Ra'+str(Ra)+filename_end
+#        #saveFile = filename+'Ra'+str(Ra)+'.npy'
+#        steady.saveToFile(saveFile)
+#        
+#        steady.phi.change_scales(1)
+#        steady.b.change_scales(1)
+#        steady_b = steady.b.allgather_data('g')
+#        steady_phi = steady.phi.allgather_data('g')
+#        guess = arrsToStateVec(steady_phi, steady_b)
+#        dt = steady.time_step
+#    print(RaVals)
+#    print(Nu_Vals)
+#    return RaVals, Nu_Vals, steady_states
+        
+def follow_branch(Pr,alpha,Ra_start,num_steps,Ra_step, Nx, Nz, startingGuess, starting_dt, tol):
     #Ra_start is starting Rayleigh number
     #Ra_end is the ending Rayleigh number
     #Ra_step is the step in Ra taken when increasing Ra
-    RaVals = np.arange(Ra_start,Ra_end,Ra_step)
-    #RaVals = np.arange(49750,6e4,5e2)
-    steady_states = []
+    RaVals = np.round(Ra_start*(Ra_step**np.arange(1,num_steps+1)))
+    #RaVals = np.arange(Ra_start,Ra_end,Ra_step)
+    #steady_states = []
     Nu_Vals = []
     guess = startingGuess
     dt = starting_dt
-    #guess = np.zeros(2*Nx*Nz)
-    #dt = 0.125
-    #filename_start = 'RB1_steady_states/Pr7_redo/primary_box/'
     filename_end = 'Pr'+str(Pr)+'alpha'+str(alpha)+'Nx' + str(Nx) + 'Nz' + str(Nz) + '_SS.npy'
-    #filename = 'branch_tester/Pr100'
     for Ra in RaVals:
         steady = RBC_Problem(Ra,Pr,alpha,Nx,Nz,time_step=dt)
         steady.initialize()
-        iters = findSteadyState(steady, guess, 2, tol, 50, False)
+        steady_vec = findSteadyState(steady, guess, 2, tol, 50, False)
         #print('Ra= ',Ra)
         #print('steady state found . Iters = ', iters)
-        steady_states.append(steady)
+        #steady_states.append(steady)
         Nu = steady.calc_Nu()
         Nu_Vals.append(Nu)
         logging.info("Ra= %i", Ra)
-        logging.info('Steady State Found. Iters = %i', iters)
+        #logging.info('Steady State Found. Iters = %i', iters)
         logging.info("Nu= %f", Nu)
         saveFile = 'Ra'+str(Ra)+filename_end
         #saveFile = filename+'Ra'+str(Ra)+'.npy'
         steady.saveToFile(saveFile)
-        
+
         steady.phi.change_scales(1)
         steady.b.change_scales(1)
         steady_b = steady.b.allgather_data('g')
@@ -237,8 +278,7 @@ def follow_branch(Pr,alpha,Ra_start,Ra_end,Ra_step, Nx, Nz, startingGuess, start
         dt = steady.time_step
     print(RaVals)
     print(Nu_Vals)
-    return RaVals, Nu_Vals, steady_states
-        
+    return RaVals, Nu_Vals#, steady_states
 
 def foundOptimalNu(NuArr):
     if len(NuArr) >= 3 and (NuArr[-2] > NuArr[-3]) and (NuArr[-2] > NuArr[-1]):
